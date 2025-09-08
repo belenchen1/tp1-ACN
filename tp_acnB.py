@@ -49,6 +49,14 @@ def gap_minutos(self_dist: float, self_speed: float, lead_dist: float, lead_spee
     """ETA(seguidor) - ETA(líder) en minutos, con velocidades actuales."""
     return eta_min(self_dist, self_speed) - eta_min(lead_dist, lead_speed)
 
+def encontrar_lider(self: "Avion", cohort: Dict[int, "Avion"]):
+    #*Devuelve el avion por delante mas cercano que no este en diverted, landed o turnaround *#
+    candidatos = [a for a in cohort.values() if a.id != self.id and a.distancia_a_aep < self.distancia_a_aep and a.status not in("diverted", "landed", "turnaround")]
+    if not candidatos:
+        return None
+    
+    return max(candidatos, key=lambda a: a.distancia_a_aep)
+
 
 #! Clase Avion y sus metodos 
 @dataclass
@@ -81,9 +89,7 @@ class Avion:
         if self.status in ("landed", "diverted"):
             return
         
-        leader = cohort.get(self.id + 1, None)
-        if leader and leader.status in ("landed", "diverted"):
-            leader = None
+        leader = encontrar_lider(self, cohort)
 
         vmin, vmax = velocidad_por_distancia(self.distancia_a_aep)
 
@@ -140,6 +146,11 @@ class Avion:
         avance_mn = knots_to_nm_per_min(self.velocidad) *dt_min
         self.distancia_a_aep = max(0.0, self.distancia_a_aep - avance_mn)
 
+        if self.status != "turnaround" and self.distancia_a_aep <= 0.0:
+            self.status = "landed"
+            self.velocidad = 0.0
+            return
+
 
 
 #!Defino la funcion que representa las llegadas Bernoulli por minuto
@@ -159,7 +170,8 @@ def color_estados(estado):
         "approach": "tab:blue",
         "delayed":    "tab:orange",
         "turnaround": "tab:red",
-        "diverted":   "tab:pink",
+        "diverted":   "tab:green",
+        "landed": "tab:gray"
     }.get(estado, "diverted")
 
 
@@ -206,6 +218,8 @@ def simular(lam, t_inicio, t_final, seed = 42):
         if t >= 0: #*Esto solo para empezar a capturar la simulacion a partir del t0 en caso de que hayas hecho un warm up desde numeros anteriores
             xs, ys, cs = [], [], []
             for v in vuelos:
+                if v.status in ("diverted", "landed"):
+                    continue 
                 xs.append(max(0.0, min(x_max, v.distancia_a_aep)))
                 ys.append(lanes[v.id] * lane_step) #*Valores irreales para calcular la posicion vertical del avion
                 cs.append(color_estados(v.status))
@@ -225,6 +239,10 @@ def save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10):
     ax.set_ylabel("Pista visual por avión")
 
  
+    vline_100 = ax.axvline(
+        100, linestyle="--", color="k", alpha=0.6, linewidth=1.5, zorder=1
+    )
+
     scat = ax.scatter([], [])
     scat.set_offsets(np.empty((0, 2)))
 
@@ -240,7 +258,7 @@ def save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10):
     def init():
         scat.set_offsets(np.empty((0, 2)))  
         scat.set_color([])                  
-        return (scat,)
+        return (scat, vline_100)
 
     def update(i):
         xs, ys, cs = frames[i]
@@ -252,7 +270,7 @@ def save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10):
             scat.set_offsets(np.empty((0, 2)))
             scat.set_color([])
         ax.set_title(f"Aproximaciones – t = {i} min")
-        return (scat,)
+        return (scat, vline_100)
 
     
     anim = animation.FuncAnimation(
@@ -272,7 +290,7 @@ def save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10):
 #!Main con warmup para arrancar desde un estado mas interesante
 if __name__ == "__main__":
     # λ = prob de aparición por minuto
-    lam = 0.1        # ≈ 6 aviones/hora de arribo al horizonte
+    lam = 0.5        # ≈ 6 aviones/hora de arribo al horizonte
     warmup = 120     # arrancar 2 horas “antes” (minutos relativos)
     t_obs = 1080     # ventana de observación (06:00–24:00)
 
