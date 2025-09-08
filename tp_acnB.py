@@ -290,7 +290,7 @@ def save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10):
 #!Main con warmup para arrancar desde un estado mas interesante
 if __name__ == "__main__":
     # λ = prob de aparición por minuto
-    lam = 0.5        # ≈ 6 aviones/hora de arribo al horizonte
+    lam = 0.5       # ≈ 6 aviones/hora de arribo al horizonte
     warmup = 120     # arrancar 2 horas “antes” (minutos relativos)
     t_obs = 1080     # ventana de observación (06:00–24:00)
 
@@ -303,6 +303,8 @@ if __name__ == "__main__":
 
     save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10)
 
-            
 
+#! ---------------------------------------EJERCICIO 2 ------------------------------------------
+#! Si el promedio de arribos es 1 avion por hora → lambda = 18/1080 = 1/60 = 0,016 (6 periodico) 
+#! ---------------------------------------------------------------------------------------------
 
