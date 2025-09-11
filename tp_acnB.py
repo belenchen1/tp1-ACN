@@ -51,7 +51,7 @@ def gap_minutos(self_dist: float, self_speed: float, lead_dist: float, lead_spee
 
 def encontrar_lider(self: "Avion", cohort: Dict[int, "Avion"]):
     #*Devuelve el avion por delante mas cercano que no este en diverted, landed o turnaround *#
-    candidatos = [a for a in cohort.values() if a.id != self.id and a.distancia_a_aep < self.distancia_a_aep and a.status not in("diverted", "landed", "turnaround")]
+    candidatos = [a for a in cohort.values() if a.id != self.id and a.distancia_a_aep < self.distancia_a_aep and a.status in("approach", "delayed")]
     if not candidatos:
         return None
     
@@ -284,7 +284,24 @@ def save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10):
     finally:
         plt.close(fig)
 
+#! ---------------------------------------EJERCICIO 3 ------------------------------------------
+#! Estimar la proba de que llegen exactamente 5 aviones en una hora 
+#! ---------------------------------------------------------------------------------------------
+def proba5_aviones(lam = 1/60, horas = 10000, seed = 42):
+    
+    t0, t1 = 0, horas*60
+    spawns = tiempos_de_spawn(lam, t0, t1, seed)
 
+    contador = [0]*horas #Crea un array de 0's de size horas
+    for t in spawns:
+        hora = t//60  #Como la funcion tiempos de spawn esta en minutos, quiero pasarlo a horas con division entera (redondea hacia abajo)
+        if hora < horas:
+            contador[hora] +=1
+    
+    proba5 = sum(1 for c in contador if c == 5) / horas #Hago el promedio sumando 1 si y solo si el contador en la hora c = 5 (es decir llegaron 5 aviones en esa hora)
+    mediaArribos = sum(contador)/horas #solo sirve como una especie de sanity check
+
+    return proba5, mediaArribos
 
 
 #!Main con warmup para arrancar desde un estado mas interesante
@@ -303,8 +320,30 @@ if __name__ == "__main__":
 
     save_gif_frames(frames, lanes, out_path="sim_ej1.gif", fps=10)
 
+    #? Main ejercicio 3
+    lamEj3 = 1/60
+    proba5, mediaArribos = proba5_aviones(lamEj3, 50_000, 42)
+    print(f"[EJ3] λ={lamEj3:.6f} -> P(#=5 en 1h)≈ {proba5:.6f} | media por hora≈ {mediaArribos:.4f}")
+
+
+
+#TODO Esto iria todo en las slides creo
 
 #! ---------------------------------------EJERCICIO 2 ------------------------------------------
 #! Si el promedio de arribos es 1 avion por hora → lambda = 18/1080 = 1/60 = 0,016 (6 periodico) 
 #! ---------------------------------------------------------------------------------------------
 
+
+#? ---------------------------------------EJERCICIO 3 ------------------------------------------
+#? Verificacion de manera analitica del resultado
+#
+#   Defino Xi (Bernoulli) como la variable "hubo arribo en el minuto i" con P(X=1) = lambda
+
+#   En una hora hay n = 60 minutos -> el numero de arribos por hora se transforma en N = sum(i=1 hasta 60 de Xi) ~ Binom( p=lambda, n=60 )
+
+#   La proba de que hayan k arribos en una hora es exactamente:
+#   P(N = k) = numComb(60, k) * lambda^k * (1-lambda)^60-k 
+
+#   Con lambda = 1/60 y k = 5 entonces;
+#   P(N = 5) = numComb(60, 5) * 1/60^5 * (59/60)^55 ~= 0.0027868
+#? ---------------------------------------------------------------------------------------------
