@@ -4,9 +4,6 @@
 # ÚNICO cambio: la lógica de REINGRESO desde 'turnaround' ahora busca un HUECO
 # GLOBAL ≥ 10 min en la cola (entre cualquier par consecutivo de aviones), en
 # lugar de mirar sólo al antiguo líder (id+1). Todo lo demás se mantiene igual.
-# 
-# Pedido del alumno/a: "COMENTALO MUCHO MÁS, línea por línea" → agrego comentarios
-# extensivos explicando QUÉ hace cada línea y POR QUÉ.
 # -----------------------------------------------------------------------------
 
 from __future__ import annotations  # Permite anotar tipos de clases aún no definidas (forward refs)
@@ -77,7 +74,8 @@ def velocidad_por_distancia(d_nm: float) -> Tuple[float, float]:
 
 
 def eta_min(dist_nm: float, speed_kts: float) -> float:
-    """ETA (min) a pista si mantuvieras speed_kts constante desde dist_nm.
+    """ tiempo en minutos que te faltan para llegar a aep si mantuvieras esa velocidad constante.
+    ETA (min) a pista si mantuvieras speed_kts constante desde dist_nm.
     speed_kts/60 = nm/min; dist_nm / (nm/min) = min. Si speed<=0 ⇒ infinito.
     """
     return float('inf') if speed_kts <= 0 else dist_nm / (speed_kts / 60.0)
@@ -96,7 +94,8 @@ def gap_minutos(self_dist: float, self_speed: float,
 # --------------------------------------------------
 @dataclass
 class Avion:
-    id: int                                 # Identificador entero. Convenio: líder "nominal" es id+1
+    id: int                                 # NO LO USAMOS MAS. Identificador entero autoincremental pero fijo. [ESTO NO: Convenio: líder "nominal" es id+1 (no porque si metes un avion entre otros dos tenes que cambiar los ids de todos)]
+    leader: Avion = None                    
     momento_aparicion: float                # Minuto en que aparece a 100 nm (spawn)
     distancia_a_aep: float = 100.0          # Estado: distancia restante a la pista (nm). 0 ⇒ en pista
     velocidad: float = 300.0                # Estado: velocidad actual (kts)
@@ -107,17 +106,17 @@ class Avion:
         return velocidad_por_distancia(self.distancia_a_aep)
 
     def step(self, *,
-             cohort: Dict[int, "Avion"],     # Mapa id→Avion para ubicar "líder/vecinos" sin recorrer toda la lista
-             dt_min: float = 1.0,            # Tamaño de paso (minutos). Aquí siempre 1
-             gap_target_min: float = separacion_target,   # Buffer deseado (5 min)
-             gap_minimo_min: float = separacion_minima,   # Umbral peligro (4 min)
-             gap_reingreso_min: float = 10.0              # Requisito para reinsertarse tras turnaround
-             ) -> None:
+            cohort: Dict[int, "Avion"],     # Mapa id→Avion para ubicar "líder/vecinos" sin recorrer toda la lista
+            dt_min: float = 1.0,            # Tamaño de paso (minutos). Aquí siempre 1
+            gap_target_min: float = separacion_target,   # Buffer deseado (5 min)
+            gap_minimo_min: float = separacion_minima,   # Umbral peligro (4 min)
+            gap_reingreso_min: float = 10.0              # Requisito para reinsertarse tras turnaround
+            ) -> None:
         """Aplica la política de control minuto a minuto.
         Casos principales:
-          - Normal (no turnaround): si gap<4 ⇒ intento -20 kts vs líder ≥ vmin, si no ⇒ turnaround.
+            - Normal (no turnaround): si gap<4 ⇒ intento -20 kts vs líder ≥ vmin, si no ⇒ turnaround.
             Si gap≥5 ⇒ approach@vmax. Si 4≤gap<5 ⇒ delayed@vmax.
-          - Turnaround: **cambio** pedido: busco HUECO GLOBAL ≥10 min (por ETA) y si lo encuentro
+            - Turnaround: **cambio** pedido: busco HUECO GLOBAL ≥10 min (por ETA) y si lo encuentro
             reingreso a approach@vmax; si no, sigo alejándome a 200 kts; si paso de 100 nm ⇒ diverted.
         """
 
@@ -140,7 +139,7 @@ class Avion:
 
             # 4.a) Construyo lista de aviones "activos" (descarto landed/diverted y a mí mismo).
             activos = [a for a in cohort.values()
-                       if a.id != self.id and a.status not in ("landed", "diverted")]
+                    if a.id != self.id and a.status not in ("landed", "diverted", "turnaround")] #agrego turnaround para que no me considere a mi mismo ni a otros que esten volviendo 
 
             # 4.b) Si no hay nadie activo, puedo reinsertarme sin conflicto → approach@vmax
             if not activos:
@@ -157,10 +156,18 @@ class Avion:
 
                 # 4.e) Busco un hueco entre cada par consecutivo (A,B) con:
                 #      - Separación ETA ≥ gap_reingreso_min (10 min)
-                #      - Y que my_eta caiga DENTRO del hueco (eta(A) ≤ my_eta ≤ eta(B))
+                #      - Y que my_eta caiga DENTRO del hueco (eta(A) ≤ my_eta ≤ eta(B)) # tiene que ser a 5 min de cada uno
                 reingresa = False
                 for (a1, eta1), (a2, eta2) in zip(cand, cand[1:]):  # recorro pares adyacentes en la cola temporal
-                    if (eta2 - eta1) >= gap_reingreso_min and (eta1 <= my_eta <= eta2):
+                    if (eta2-eta1) >= gap_reingreso_min: # hay hueco suficiente
+                        eta_medio = (eta1 + eta2) / 2.0
+                        v_medio = self.distancia_a_aep/eta_medio
+                        a1.leader 
+                        break
+
+
+
+                    if (my_eta-eta1 >= 5 and eta2-my_eta >= 5):
                         # Hueco suficiente y mi ETA cabe dentro → me reinsertaría "entre" A y B
                         self.status = "approach"  # salgo de turnaround
                         self.velocidad = vmax      # aplico la misma velocidad con la que evalué el hueco
@@ -267,8 +274,8 @@ def simular(lam, t_inicio, t_final, seed = 42):
     # Convención de ids: decrecientes (…,-3,-2,-1). El de id más "grande" (-1) suele estar más cerca.
     prox_avion_id = 0  # arrancamos en 0 y vamos decrementando al spawnear
 
-    vuelos: List[Avion] = []          # lista con todos los objetos Avion vivos (y los que ya aterrizaron/desviaron)
-    cohort: Dict[int, Avion] = {}     # diccionario id→Avion para acceso O(1)
+    vuelos_activos: List[Avion] = []          # lista con todos los objetos Avion ACTIVOS
+    map_id_av: Dict[int, Avion] = {}     # diccionario id→Avion para acceso O(1)
 
     spawns = set(tiempos_de_spawn(lam, t_inicio, t_final, seed))  # set de minutos con spawn para testear en O(1)
 
@@ -283,23 +290,26 @@ def simular(lam, t_inicio, t_final, seed = 42):
 
         # 1) Spawns: si este minuto pertenece al set, aparece EXACTAMENTE 1 avión a 100 nm
         if t in spawns:
-            prox_avion_id -= 1                                   # asigno nuevo id decreciente
+            prox_avion_id -= 1                                   # asigno nuevo id decreciente 
+            #todo. ME TENGO QUE ASEGURAR QUE EL ID NO CAMBIE NUNCA. QUE SEA UNICO Y FIJO. LO USO SOLO PARA EL MAPEO
             av = Avion(prox_avion_id, t, 100.0, 300.0, "approach")  # objeto Avion inicializado
-            vuelos.append(av)                                     # lo agrego a la lista
-            cohort[av.id] = av                                    # y al diccionario para lookup
+            if vuelos_activos:
+                av.leader = vuelos_activos[-1]                          
+            vuelos_activos.append(av)                                     # lo agrego a la lista
+            map_id_av[av.id] = av                                    # y al diccionario para lookup
             lanes[av.id] = lane_counter                           # le asigno un "carril" (línea visual) único
             lane_counter += 1                                     # preparo el carril para el próximo
 
         # 2) Dinámica: actualizo TODOS los aviones, uno por uno, ordenados por id ascendente
         #    (seguidores primero, líderes después), de modo que cada uno decida con el estado
         #    del tick anterior de su líder (actualización "sincrónica" limpia).
-        for f in sorted(vuelos, key=lambda a: a.id):
-            f.step(cohort=cohort, dt_min=1.0)
+        for f in sorted(vuelos_activos, key=lambda a: a.id):
+            f.step(cohort=map_id_av, dt_min=1.0)
 
         # 3) Captura visual (frames): sólo desde t>=0 (si hubo warmup con t<0 no lo guardo)
         if t >= 0:
             xs, ys, cs = [], [], []                    # listas para distancias, carriles y colores
-            for v in vuelos:                           # recorro todos los aviones vivos
+            for v in vuelos_activos:                           # recorro todos los aviones vivos
                 xs.append(max(0.0, min(x_max, v.distancia_a_aep)))  # capeo distancia a [0, x_max] por estética
                 ys.append(lanes[v.id] * lane_step)                  # ubico en su carril vertical
                 cs.append(color_estados(v.status))                  # color según su estado
