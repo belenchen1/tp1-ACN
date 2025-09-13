@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 import math, random
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+import matplotlib.animation as animation
 
 MINUTE = 1.0
 
@@ -35,6 +37,7 @@ def velocidad_por_distancia(d_nm: float) -> Tuple[float, float]:
     # si está más allá de 100 nm:
     return velocidades[0][2], velocidades[0][3]
 
+
 @dataclass
 class Avion:
     id: int
@@ -45,7 +48,7 @@ class Avion:
     instante_aterrizaje: Optional[float] = None
     eta_base: Optional[float] = None  # ETA sin congestión (para demora base)
     sufrio_congestion: bool = False
-    historial: List[Tuple[float, float, float]] = field(default_factory=list)  # (t, distancia_a_aep, velocidad)
+    historial: List[Tuple[float, float, float, str, bool]] = field(default_factory=list)  # (t, distancia_a_aep, velocidad)
 
     def velocidad_permitida(self) -> Tuple[float, float]:
         return velocidad_por_distancia(self.distancia_a_aep)
@@ -62,7 +65,7 @@ class Avion:
             if self.distancia_a_aep > 100.0:
                 self.status = "diverted"
         # otros estados no mueven (diverted/landed)
-        self.historial.append((self.momento_aparicion + len(self.historial)*dt_min, self.distancia_a_aep, self.velocidad))
+        self.historial.append((self.momento_aparicion + len(self.historial)*dt_min, self.distancia_a_aep, self.velocidad, self.status, self.sufrio_congestion))
 
 
 def free_flow_eta_minutes() -> float:
@@ -234,30 +237,131 @@ def simulate_day(
     }
     return SimResult(flights=flights, metrics=metrics, timeline_landings=timeline_landings)
 
+
 # TP1 – Ejercicio 1: simulación Monte Carlo básica + visualización
-def plot_trayectorias(flights: List[Avion]):
+
+def _estado_visual(status: str, congested: bool) -> str:
+    # mapping de estado → color
+    if status == "backtrack":
+        return "tab:red"
+    if status == "diverted":
+        return "pink"
+    # tratamos goaround como delayed para resaltarlo
+    if status == "goaround":
+        return "tab:orange"
+    # approach: diferenciamos libre vs congestionado (delayed)
+    if status == "approach":
+        return "tab:orange" if congested else "tab:blue"
+    # landed u otros: no se dibujan (caller los oculta)
+    return "black"
+
+def _legend_handles():
+    return [
+        Line2D([0],[0], marker='o', linestyle='None', label='approaching', color='tab:blue'),
+        Line2D([0],[0], marker='o', linestyle='None', label='delayed',     color='tab:orange'),
+        Line2D([0],[0], marker='o', linestyle='None', label='backtrack',   color='tab:red'),
+        Line2D([0],[0], marker='o', linestyle='None', label='diverted',    color='gray'),
+    ]
+
+def save_gif_visualizacion(sim: SimResult, out_path: str = "aep_sim.gif", fps: int = 10):
     """
-    Dibuja distancia a AEP (nm) vs tiempo (min) para un subconjunto de aviones.
+    Genera un GIF de la simulación:
+      - X: distancia a AEP (nm), 100 → 0
+      - Y: pista (canal) por avión para separar puntos
+      - Color por estado visual (approaching/delayed/backtrack/diverted)
+    Usa Line2D para los puntos y la leyenda.
     """
+    flights = sim.flights
+    if not flights:
+        print("No hay vuelos para visualizar.")
+        return
+
+    # Duración de la animación = máximo tiempo logueado en historial
+    t_max = 0
     for f in flights:
-        ts = [p[0] for p in f.historial]
-        ds = [p[1] for p in f.historial]
-        if ts:
-            plt.plot(ts, ds, alpha=0.7, label=f"Avión {f.id}")
+        if f.historial:
+            t_max = max(t_max, int(f.historial[-1][0]))
 
-    plt.gca().invert_yaxis()  # opcional: 100 nm arriba, 0 nm abajo (visual)
-    plt.xlabel("Tiempo (min desde 06:00)")
-    plt.ylabel("Distancia a AEP (nm)")
-    plt.title("Aproximaciones (distancia vs tiempo)")
+    # Pre-asignamos una "pista" Y por avión para evitar superposición
+    # (simple: fila entera; si son muchos, compactar con modulo)
+    lanes = {f.id: i for i, f in enumerate(flights)}
+    lane_scale = 1.2  # separación vertical entre puntos
 
-    # fijar rango del eje x a 0–1080 min
-    plt.xlim(0, 1080)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.set_xlim(0, 110)       # 0..100 nm (un poco de margen)
+    ax.set_ylim(-1, max(2, len(flights))*lane_scale)
+    ax.invert_xaxis()         # que "avance" hacia la izquierda (100→0)
+    ax.set_xlabel("Distancia a AEP (mn)")
+    ax.set_ylabel("Pista por avión (solo visual)")
+    ax.set_title("Aproximaciones a AEP – estados por color")
 
-    if len(flights) <= 12:
-        plt.legend(loc="upper right", fontsize=8)
+    # Creamos un Line2D por avión (marker-only)
+    line_by_id: Dict[int, Line2D] = {}
+    for f in flights:
+        ln = Line2D([], [], linestyle='None', marker='o', markersize=6)
+        ax.add_line(ln)
+        line_by_id[f.id] = ln
 
-    plt.tight_layout()
-    plt.show()
+    # Leyenda con Line2D
+    ax.legend(handles=_legend_handles(), loc="upper right")
+
+    def sample_record_at_time(f: Avion, t: int) -> Optional[Tuple[float, float, float, str, bool]]:
+        """Devuelve el último registro de historial con tiempo <= t, o None si aún no apareció."""
+        # Los tiempos se agregan por minuto en orden; podemos indexar por (t - momento_aparicion) si es válido
+        idx = t - int(f.momento_aparicion)
+        if idx < 0:
+            return None
+        if idx >= len(f.historial):
+            # ya no hay más registros (p.ej. luego de que terminó el día)
+            return f.historial[-1] if f.historial else None
+        return f.historial[idx]
+
+    def update(frame_t: int):
+        # Actualizamos la posición y color de cada avión en este minuto
+        for f in flights:
+            rec = sample_record_at_time(f, frame_t)
+            ln = line_by_id[f.id]
+            if rec is None:
+                # antes de aparecer: oculto
+                ln.set_data([], [])
+                continue
+
+            t_rec, d_nm, v_kts, status, congested = rec
+
+            # No mostramos si ya está landed (punto desaparece)
+            if status == "landed":
+                ln.set_data([], [])
+                continue
+            if status == "diverted" and d_nm > 100.0:
+                # ya se fue (opcional: si querés mostrarlo clavado en >100, quitá este if)
+                ln.set_data([], [])
+                continue
+
+            y = lanes[f.id] * lane_scale
+            ln.set_data([d_nm], [y])
+            ln.set_color(_estado_visual(status, congested))
+
+        ax.set_title(f"Aproximaciones a AEP – t = {frame_t} min")
+        return tuple(line_by_id.values())
+
+    anim = animation.FuncAnimation(
+        fig, update,
+        frames=range(0, t_max + 1, max(1, int(60/fps))),  # muestreamos acorde al fps
+        interval=1000/fps,
+        blit=True
+    )
+
+    try:
+        # Requiere Pillow instalado: pip install pillow
+        writer = animation.PillowWriter(fps=fps)
+        anim.save(out_path, writer=writer)
+        print(f"GIF guardado en: {out_path}")
+    except Exception as e:
+        print("No pude escribir el GIF. ¿Tenés 'pillow' instalado?:", e)
+    finally:
+        plt.close(fig)
+
+
 
 if __name__ == "__main__":
     # Parámetros de prueba
@@ -281,5 +385,5 @@ if __name__ == "__main__":
     for k, v in resultado.metrics.items():
         print(f"  {k}: {v}")
 
-    # Graficar trayectorias
-    plot_trayectorias(resultado.flights)
+    # Generar visualización como GIF
+    save_gif_visualizacion(resultado, out_path="aep_sim.gif", fps=10)
