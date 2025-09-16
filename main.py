@@ -114,6 +114,11 @@ class TraficoAviones:
             av.leader_id = self.activos[i-1] if i > 0 else None
 
     def control_paso(self) -> None:
+        '''
+        Hace: reordena la lista de aviones, chequea cada avion y su lider por si tiene que atrasarse, 
+        '''
+        # pone los nuevos aviones que van a ser turnaroudn y vacia la lista del minuto anterior de los que recien estaban turnaround
+        # 
         # para el diccionario de current_speeds de distancias/velocidades
         speed_prev = {aid: self.planes[aid].velocidad_kts for aid in self.activos}
         dist_prev = {aid: self.planes[aid].distancia_nm for aid in self.activos}
