@@ -297,6 +297,10 @@ class TraficoAviones:
         self.ordenar_activos()
 
     def bernoulli_aparicion(self, lam_per_min: float, t0: int = DAY_START, t1: int = DAY_END) -> List[int]:
+        '''
+        devuelve una lista de los t's en los que aparecen los aviones
+        la bernoulli es una aproximación de la forma discreta al proceso de Poisson
+        '''
         apariciones = []
         for t in range(t0, t1):
             if self.rng.random() < lam_per_min:
