@@ -53,6 +53,8 @@ def velocidad_por_distancia(d_nm: float) -> Tuple[float, float]:
     return VELOCIDADES[0][2], VELOCIDADES[0][3] # si te pasas de los 100nm
 
 
+
+
 def mins_a_aep(dist_nm: float, speed_kts: float) -> float:
     ''' cuantos minutos te faltan para llegar a aep si vas a speed_kts constante '''
     t = 0.0

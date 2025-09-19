@@ -7,7 +7,7 @@ import os, math, random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from main_ej5 import *
+from main_ej5 import *  # TraficoAviones, VELOCIDADES, DAY_START, DAY_END, velocidad_por_distancia, knots_to_nm_per_min
 
 # --- tiempo base (sin congestión) desde 100nm volando a vmax por banda ---
 def baseline_time_from_100nm() -> float:
@@ -204,7 +204,7 @@ def save_plot_y_vs_lambda(df: pd.DataFrame, ycol: str, ylabel: str, out_path: st
 # -----------------------------
 def run_montecarlo_ej5():
     # Elegí la malla de λ que quieras estudiar
-    LAMBDAS = [0.02, 0.05, 0.08, 0.10, 0.15, 0.20]
+    LAMBDAS = [0.02, 0.05, 0.08, 0.10, 0.15, 0.20]  # cambiá a [0.02, 0.10, 0.20, 0.50, 1.00] si querés igual que Ej4
     DAYS = 1000
     SEED = 2025
 
@@ -218,7 +218,15 @@ def run_montecarlo_ej5():
     save_plot_y_vs_lambda(df, "avg_delay_min_mean", "Atraso promedio (min)", os.path.join("ej5_outputs","delay_vs_lambda.png"))
     save_plot_y_vs_lambda(df, "divert_rate_mean", "Tasa de desvíos", os.path.join("ej5_outputs","diverts_vs_lambda.png"))
 
-    print("Listo. CSV y gráficos en:", os.path.abspath("ej5_outputs"))
+    # 👇 Resumen tipo "Resultados resumidos por λ"
+    print("\n--- Resultados resumidos por λ ---")
+    for _, row in df.sort_values("lambda_per_min").iterrows():
+        lam = row["lambda_per_min"]
+        divert_pct = row["divert_rate_mean"] * 100.0
+        avg_delay = row["avg_delay_min_mean"]
+        print(f"λ = {lam:>4.2f} -> {divert_pct:5.2f}% desviados | Atraso medio: {avg_delay:.2f} min")
+
+    print("\nListo. CSV y gráficos en:", os.path.abspath("ej5_outputs"))
 
 if __name__ == "__main__":
     run_montecarlo_ej5()
