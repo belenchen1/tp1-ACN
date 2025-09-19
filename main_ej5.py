@@ -158,14 +158,6 @@ class TraficoAviones:
             av = self.planes[aid]
             vmin, vmax = velocidad_por_distancia(dist_prev[aid])
 
-            # Chequeo de interrupción (go-around por viento)  (EJERCICIO 5)
-            if dist_prev[aid] <= 20.0:  # solo en la fase final (<20 nm)
-                if self.rng.random() < 0.1:  # 1/10 de probabilidad
-                    av.estado = "interrupted"
-                    av.velocidad_kts = VEL_TURNAROUND
-                    self.mover_a_interrupted(aid)
-                    continue  # salto a siguiente avión, no sigo con la lógica normal
-
             leader_id = av.leader_id
             if leader_id is None:
                 av.velocidad_kts = vmax
@@ -353,19 +345,29 @@ class TraficoAviones:
 
             # Si no encontró hueco válido en ningún caso → sigue en turnaround o interrupted
 
-
     def mover_paso(self) -> None:
         # approach
         for aid in list(self.activos):
             av = self.planes[aid]
             avance_nm = knots_to_nm_per_min(av.velocidad_kts) * MINUTE
+
+            # Go-around SOLO si este tick ya llegaría (último minuto antes de tocar pista)
+            if av.distancia_nm <= avance_nm:
+                if self.rng.random() < 0.1:  # 10% de chances
+                    av.estado = "interrupted"
+                    av.velocidad_kts = VEL_TURNAROUND
+                    self.mover_a_interrupted(aid)
+                    continue  # no aterriza este minuto
+
+            # Avance normal y eventual aterrizaje
             av.distancia_nm = max(0.0, av.distancia_nm - avance_nm)
-            if av.distancia_nm <= 0.0: # llegó a aep
+            if av.distancia_nm <= 0.0:  # llegó a AEP
                 av.distancia_nm = 0.0
                 av.velocidad_kts = 0.0
                 av.estado = "landed"
                 av.aterrizaje_min = self.current_min
                 self.mover_a_inactivos(aid)
+
         # turnaround
         for aid in list(self.turnaround):
             av = self.planes[aid]
@@ -392,6 +394,48 @@ class TraficoAviones:
 
         # recalcular orden y líderes para próximo paso
         self.ordenar_activos()
+
+
+
+    """ def mover_paso(self) -> None:
+        # approach
+        for aid in list(self.activos):
+            av = self.planes[aid]
+            avance_nm = knots_to_nm_per_min(av.velocidad_kts) * MINUTE
+            av.distancia_nm = max(0.0, av.distancia_nm - avance_nm)
+            if av.distancia_nm <= 0.0: # llegó a aep
+                av.distancia_nm = 0.0
+                av.velocidad_kts = 0.0
+                av.estado = "landed"
+                av.aterrizaje_min = self.current_min
+                self.mover_a_inactivos(aid)
+        # turnaround
+        for aid in list(self.turnaround):
+            av = self.planes[aid]
+            if aid in self.recien_turnaround:
+                # no mover en el mismo paso del cambio a turnaround
+                continue
+            retro_nm = knots_to_nm_per_min(VEL_TURNAROUND) * MINUTE
+            av.distancia_nm += retro_nm
+            if av.distancia_nm >= MAX_DIVERTED_DISTANCE:
+                av.estado = "diverted"
+                self.mover_a_inactivos(aid)
+
+        # interrupted
+        for aid in list(self.interrupted):
+            
+            av = self.planes[aid]
+            if aid in self.recien_interrupted:
+                # no mover en el mismo paso del cambio a interrupted
+                continue
+            retro_nm = knots_to_nm_per_min(VEL_TURNAROUND) * MINUTE
+            av.distancia_nm += retro_nm
+            if av.distancia_nm >= MAX_DIVERTED_DISTANCE:
+                av.estado = "diverted"
+                self.mover_a_inactivos(aid)
+
+        # recalcular orden y líderes para próximo paso
+        self.ordenar_activos() """
 
     def bernoulli_aparicion(self, lam_per_min: float, t0: int = DAY_START, t1: int = DAY_END) -> List[int]:
         '''
