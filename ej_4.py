@@ -214,7 +214,16 @@ def main():
     save_plot_y_vs_lambda(df, "avg_delay_min_mean", "Atraso promedio (min)", os.path.join("ej4_outputs","delay_vs_lambda.png"))
     save_plot_y_vs_lambda(df, "divert_rate_mean", "Tasa de desvío (por arribo)", os.path.join("ej4_outputs","diverts_vs_lambda.png"))
 
-    print("Listo. Resultados en:", csv_path)
+    # 👇 Agregado: imprimir % de desvíos y atraso medio
+    print("\n--- Resultados resumidos por λ ---")
+    for _, row in df.iterrows():
+        lam = row["lambda_per_min"]
+        divert_pct = row["divert_rate_mean"] * 100   # porcentaje de desviados
+        avg_delay = row["avg_delay_min_mean"]        # atraso promedio en minutos
+        print(f"λ = {lam:.2f} -> {divert_pct:.2f}% desviados | Atraso medio: {avg_delay:.2f} min")
+
+    print("\nListo. Resultados en:", csv_path)
+
 
 if __name__ == "__main__":
     main()

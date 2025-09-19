@@ -52,11 +52,31 @@ def velocidad_por_distancia(d_nm: float) -> Tuple[float, float]:
             return vmin, vmax # devuelve las velocidades para esa banda
     return VELOCIDADES[0][2], VELOCIDADES[0][3] # si te pasas de los 100nm
 
+
 def mins_a_aep(dist_nm: float, speed_kts: float) -> float:
     ''' cuantos minutos te faltan para llegar a aep si vas a speed_kts constante '''
-    if speed_kts <= 0:
-        return float('inf')
-    return dist_nm / knots_to_nm_per_min(speed_kts)
+    t = 0.0
+    d = dist_nm
+    v = speed_kts
+    while d > 0:
+        for dist_low, dist_high, vmin, vmax in VELOCIDADES:
+            if dist_low <= d < dist_high: # estoy en esta banda
+                # distancia restante en la banda actual
+                dist_banda = min(d, d - dist_low)
+                if dist_banda <= 0:
+                    # Si no hay distancia para recorrer, salta a la siguiente banda
+                    d -= 1e-6
+                    continue
+                # tiempo para recorrer esa distancia a velocidad actual
+                t_banda = dist_banda / knots_to_nm_per_min(v)
+                t += t_banda
+                d -= dist_banda
+                # al pasar de banda, actualizo velocidad a vmax de la banda siguiente
+                v = vmin # vmin de mi banda actual es vmax de la siguiente
+                break
+    return t
+
+
 
 # -----------------
 # objeto Avión para simulación
@@ -69,6 +89,8 @@ class Avion:
     velocidad_kts: float = 300.0
     estado: str = "approach"  # approach | turnaround | interrupted | diverted | landed
     leader_id: Optional[int] = None  # puntero a su líder en el carril approach (como si fuese una lista simplemente enlazada)
+    # --- campos extra para estadística ---
+    aterrizaje_min: Optional[int] = None  # minuto en que aterrizó (si aplica)
 
     def limites_velocidad(self) -> Tuple[float, float]:
         return velocidad_por_distancia(self.distancia_nm)
@@ -88,6 +110,7 @@ class TraficoAviones:
         self.recien_turnaround: Set[int] = set()  # ids de aviones que cambiaron a turnaround este paso (esto es para que no retrocedan en el mismo paso que cambian de estado)
         self.interrupted: List[int] = []   # ids de aviones interrumpidos
         self.recien_interrupted: Set[int] = set()  # ids de aviones que recién pasaron a interrupted
+        self.current_min: int = DAY_START
 
 
     def aparicion(self, minuto: int) -> Avion:
@@ -341,6 +364,7 @@ class TraficoAviones:
                 av.distancia_nm = 0.0
                 av.velocidad_kts = 0.0
                 av.estado = "landed"
+                av.aterrizaje_min = self.current_min
                 self.mover_a_inactivos(aid)
         # turnaround
         for aid in list(self.turnaround):
@@ -381,12 +405,17 @@ class TraficoAviones:
         return apariciones
 
     def step(self, minuto: int, aparicion: bool) -> None:
+        self.current_min = minuto
         if aparicion:
             # crea el avion
             self.aparicion(minuto)
         # controla (cambia de carril, actualiza, etc) y mueve todos los aviones un paso (1 minuto)
         self.control_paso()
         self.mover_paso()
+
+    def aviones_landed(self) -> List[Avion]:
+        return [av for av in self.planes.values() if av.aterrizaje_min is not None]
+    # filtra solo los aviones que realmente aterrizaron 
 
 
 #################
