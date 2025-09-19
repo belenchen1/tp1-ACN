@@ -10,19 +10,31 @@ import matplotlib.pyplot as plt
 from main_ej5 import *  # TraficoAviones, VELOCIDADES, DAY_START, DAY_END, velocidad_por_distancia, knots_to_nm_per_min
 
 # --- tiempo base (sin congestión) desde 100nm volando a vmax por banda ---
-def baseline_time_from_100nm() -> float:
+def mins_a_aep(dist_nm: float, speed_kts: float) -> float:
+    ''' cuantos minutos te faltan para llegar a aep si vas a speed_kts constante '''
     t = 0.0
-    # Integra exactamente por tramos entre 100 -> 0 usando vmax de cada banda
-    for dist_low, dist_high, vmin, vmax in VELOCIDADES:
-        hi = min(dist_high, 100.0)
-        lo = max(dist_low, 0.0)
-        if hi <= lo:
-            continue
-        tramo_nm = hi - lo
-        t += tramo_nm / knots_to_nm_per_min(vmax)
+    d = dist_nm
+    v = speed_kts
+    while d > 0:
+        for dist_low, dist_high, vmin, vmax in VELOCIDADES:
+            if dist_low <= d < dist_high: # estoy en esta banda
+                # distancia restante en la banda actual
+                dist_banda = min(d, d - dist_low)
+                if dist_banda <= 0:
+                    # Si no hay distancia para recorrer, salta a la siguiente banda
+                    d -= 1e-6
+                    continue
+                # tiempo para recorrer esa distancia a velocidad actual
+                t_banda = dist_banda / knots_to_nm_per_min(v)
+                t += t_banda
+                d -= dist_banda
+                # al pasar de banda, actualizo velocidad a vmax de la banda siguiente
+                v = vmin # vmin de mi banda actual es vmax de la siguiente
+                break
     return t
 
-BASELINE_TIME_MIN = baseline_time_from_100nm()
+
+BASELINE_TIME_MIN = mins_a_aep(dist_nm=100.0, speed_kts=300)
 
 
 # -----------------------------
