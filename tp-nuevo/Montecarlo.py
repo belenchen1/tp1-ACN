@@ -130,5 +130,14 @@ def montecarlo_cierre(lams: List[float], dias: int = 100, seed: int = 25, start_
     """Montecarlo con cierre de AEP (TraficoAEPCerrado)."""
     from TraficoAEPCierre import TraficoAEPCerrado, AEPCerrado
     kw = dict(kwargs or {})
-    kw["cierre"] = AEPCerrado(start_min=start_min, dur_min=dur_min)
+    kw["closure"] = AEPCerrado(start_min=start_min, dur_min=dur_min)
     return montecarlo_dias(lams, dias=dias, seed=seed, Controller=TraficoAEPCerrado, controller_kwargs=kw)
+
+def montecarlo_politica(lams: List[float], dias: int = 100, seed:int = 25, **kwargs) -> pd.DataFrame:
+    """Montecarlo con Politica de Metering (TraficoAvionesPolitica)"""
+    from TraficoAEPPolitica import TraficoAvionesPolitica
+    return montecarlo_dias(
+        lams, dias = dias, seed=seed,
+        Controller=TraficoAvionesPolitica, controller_kwargs=kwargs or None
+    )
+

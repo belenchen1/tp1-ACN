@@ -119,3 +119,12 @@ def simular_jornada_cierre(ctrl_seed: int, lam_per_min: float, start_min: int, d
     kw = dict(kwargs or {})
     kw["cierre"] = cierre
     return simular_jornada(ctrl_seed, lam_per_min, Controller=TraficoAEPCerrado, controller_kwargs=kw)
+
+def simular_jornada_politica(ctrl_seed: int, lam_per_min: float, **kwargs) -> Metricas:
+    """Escenario con Politica de Metering (TraficoAvionesPolitica)"""
+    from TraficoAEPPolitica import TraficoAvionesPolitica
+    return simular_jornada(
+        ctrl_seed, lam_per_min,
+        Controller=TraficoAvionesPolitica,
+        controller_kwargs=kwargs or None
+    )
