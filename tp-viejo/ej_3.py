@@ -133,6 +133,6 @@ def montecarlo_dias(lam_per_min: float = 1.0/60.0, dias: int = 90, seed: int = 1
 
 if __name__ == "__main__":
     # probamos con distintas cantidades de días (lambda fijo: 1/60 = 1 por hora)
-    dias = [30, 90, 500, 1000, 5000, 10000]
+    dias = [30, 90, 500, 1000, 5000, 10000, 20000]
     for d in dias:
         montecarlo_dias(lam_per_min=1.0/60.0, dias=d, seed=2025)
