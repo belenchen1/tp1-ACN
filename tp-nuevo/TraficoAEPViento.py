@@ -17,13 +17,15 @@ from Helpers import velocidad_por_distancia, mins_a_aep, knots_to_nm_per_min
 
 class TraficoAEPViento(TraficoAviones):
 
-    def __init__(self, seed: int = 42, p_goaround: float = 0.10, final_threshold_nm: float = 20.0) -> None:
+    # Suponiendo que vaya a 150 nudos en el final, 150 nudos = 150 millas náuticas/hora → 150÷60= 2,5 millas náuticas por minuto
+    def __init__(self, seed: int = 42, p_goaround: float = 0.10, final_threshold_nm: float = 2.5) -> None:
         super().__init__(seed=seed)
         self.p_goaround = float(p_goaround)
         self.final_threshold_nm = float(final_threshold_nm)
         # estado adicional
         self.interrupted: List[int] = []
         self.recien_interrupted: Set[int] = set()
+        self.current_min: int = DAY_START
 
 
     #------------------ helpers adicionales --------------------------
@@ -42,6 +44,18 @@ class TraficoAEPViento(TraficoAviones):
             self.interrupted.remove(aid)
         if aid not in self.activos:
             self.activos.append(aid)
+
+    def mover_a_inactivos(self, aid: int) -> None:
+        ''' mueve un avión del carril activo o turnaround o interrupted a inactivos (landed o diverted) '''
+        if aid in self.activos:
+            self.activos.remove(aid)
+        if aid in self.turnaround:
+            self.turnaround.remove(aid)
+        if aid in self.interrupted:
+            self.interrupted.remove(aid)
+        if aid not in self.inactivos:
+            self.inactivos.append(aid)
+        self.planes[aid].leader_id = None
 
 
     # ---------- control ----------
@@ -197,15 +211,12 @@ class TraficoAEPViento(TraficoAviones):
             avance_nm = knots_to_nm_per_min(av.velocidad_kts) * MINUTE
             d_prev = av.distancia_nm
             new_dist = max(0.0, d_prev - avance_nm)
-
             if new_dist <= 0.0:
                 s = (d_prev/avance_nm) if avance_nm > 0 else 1.0
                 av.aterrizaje_min = int(self.current_min)
                 t_cont = float(self.current_min) + float(s)
-
                 setattr(self.planes[aid], "aterrizaje_min_cont", float(t_cont))
                 setattr(self.planes[aid], "aterrizaje_min_continuo", float(t_cont))
-
                 av.distancia_nm = 0.0
                 av.velocidad_kts = 0.0
                 av.estado = "landed"
@@ -244,3 +255,7 @@ class TraficoAEPViento(TraficoAviones):
             self.aparicion(minuto)
         self.control_paso()
         self.mover_paso()
+
+    def aviones_landed(self) -> List[Avion]:
+        return [av for av in self.planes.values() if av.aterrizaje_min is not None]
+    # filtra solo los aviones que realmente aterrizaron 
