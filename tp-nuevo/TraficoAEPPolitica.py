@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Set
 
 from TraficoAEP import TraficoAviones
-from Constants import SEPARACION_PELIGRO, VEL_TURNAROUND, BUFFER_ANTICIPACION
+from Constants import SEPARACION_PELIGRO, VEL_TURNAROUND, BUFFER_ANTICIPACION, SEPARACION_MINIMA
 from Helpers import velocidad_por_distancia, mins_a_aep, g_objetivo
 
 
