@@ -1,0 +1,16 @@
+{
+  "scenario": "viento",
+  "kwargs": {
+    "p_goaround": 0.1,
+    "final_threshold_nm": 2.5
+  },
+  "lams": [
+    0.02,
+    0.1,
+    0.2,
+    0.5,
+    1
+  ],
+  "dias": 200,
+  "seed": 123
+}

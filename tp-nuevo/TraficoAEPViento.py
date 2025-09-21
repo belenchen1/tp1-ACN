@@ -74,11 +74,15 @@ class TraficoAEPViento(TraficoAviones):
             vmin, vmax = velocidad_por_distancia(dist_prev[aid])
 
             # --- go-around por viento en final (igual que antes) ---
-            if dist_prev[aid] <= self.final_threshold_nm and self.rng.random() < self.p_goaround:
-                av.estado = "interrupted"
-                av.velocidad_kts = VEL_TURNAROUND
-                self.mover_a_interrupted(aid)
-                continue
+            if dist_prev[aid] <= self.final_threshold_nm:
+                # si todavía no se evaluó este avión, tiramos la moneda
+                if not hasattr(av, "goaround_checked") or not av.goaround_checked:
+                    av.goaround_checked = True
+                    if self.rng.random() < self.p_goaround:
+                        av.estado = "interrupted"
+                        av.velocidad_kts = VEL_TURNAROUND
+                        self.mover_a_interrupted(aid)
+                        continue
 
             # --- control normal (separación con líder) ---
             leader_id = av.leader_id
@@ -86,7 +90,8 @@ class TraficoAEPViento(TraficoAviones):
                 av.velocidad_kts = vmax
                 continue
 
-            my_eta = mins_a_aep(dist_prev[aid], vmax)
+            # my_eta = mins_a_aep(dist_prev[aid], vmax)
+            my_eta = mins_a_aep(dist_prev[aid], speed_prev[aid])
             lead_eta = mins_a_aep(dist_prev[leader_id], speed_prev[leader_id])
             gap = my_eta - lead_eta
 

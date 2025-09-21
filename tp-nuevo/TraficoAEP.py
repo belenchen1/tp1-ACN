@@ -34,6 +34,7 @@ class TraficoAviones:
         aid = self.next_id # id que le asigno al avion que apareció
         self.next_id += 1 # actualizo para el próximo avión que aparezca
         av = Avion(id=aid, aparicion_min=minuto, distancia_nm=100.0, velocidad_kts=300.0, estado="approach")
+        av.goaround_checked = False 
         self.planes[aid] = av
         self.activos.append(aid) 
         return av

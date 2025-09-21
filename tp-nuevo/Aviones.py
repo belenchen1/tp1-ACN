@@ -16,6 +16,7 @@ class Avion:
     leader_id: Optional[int] = None  # puntero a su líder en el carril approach (como si fuese una lista simplemente enlazada)
     aterrizaje_min: Optional[int] = None #minuto de aterrizaje
     aterrizaje_min_continuo: Optional [float] = None
+    goaround_checked = False
 
     def limites_velocidad(self) -> Tuple[float, float]:
         return velocidad_por_distancia(self.distancia_nm)
