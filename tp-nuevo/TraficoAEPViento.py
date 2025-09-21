@@ -73,16 +73,20 @@ class TraficoAEPViento(TraficoAviones):
             av = self.planes[aid]
             vmin, vmax = velocidad_por_distancia(dist_prev[aid])
 
-            # --- go-around por viento en final (igual que antes) ---
-            if dist_prev[aid] <= self.final_threshold_nm:
-                # si todavía no se evaluó este avión, tiramos la moneda
-                if not hasattr(av, "goaround_checked") or not av.goaround_checked:
+            # --- go-around por viento: sólo si aterrizaba en este paso ---
+            avance_nm = knots_to_nm_per_min(speed_prev[aid]) * MINUTE
+            aterriza_este_paso = (dist_prev[aid] - avance_nm) <= 0.0
+
+            if aterriza_este_paso:
+                # tirar la moneda una única vez por avión
+                if not getattr(av, "goaround_checked", False):
                     av.goaround_checked = True
                     if self.rng.random() < self.p_goaround:
                         av.estado = "interrupted"
                         av.velocidad_kts = VEL_TURNAROUND
                         self.mover_a_interrupted(aid)
                         continue
+
 
             # --- control normal (separación con líder) ---
             leader_id = av.leader_id
