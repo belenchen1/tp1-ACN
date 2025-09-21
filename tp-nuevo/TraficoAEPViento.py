@@ -85,7 +85,7 @@ class TraficoAEPViento(TraficoAviones):
                         av.estado = "interrupted"
                         av.velocidad_kts = VEL_TURNAROUND
                         self.mover_a_interrupted(aid)
-                        continue
+                        continue 
 
 
             # --- control normal (separación con líder) ---
@@ -116,12 +116,122 @@ class TraficoAEPViento(TraficoAviones):
         self.intentar_reingreso_con_interrupted(activos_order)
 
 
+        
+
+
+
+
+
+
+
     def intentar_reingreso_con_interrupted(self, activos_order: List[int]) -> None:
         """
         Igual que intentar_reingreso(base), pero permite reinsertar también
         los 'interrupted' (go-around) con la misma regla de huecos.
         Extra: por seguridad, no reinsertar interrupted si d <= 5 nm.
         """
+        if not activos_order:
+            # si no hay activos, vuelven directo a approach a vmax
+            for aid in list(self.turnaround) + list(self.interrupted):
+                av = self.planes[aid]
+                vmin, vmax = av.limites_velocidad()
+                av.velocidad_kts = vmax
+                av.estado = "approach"
+                if aid in self.turnaround:
+                    self.mover_a_activos(aid)
+                elif aid in self.interrupted:
+                    self.mover_interrupted_a_activos(aid)
+            return
+
+        # (id, ETA) ordenado por llegada
+        activos_eta = [(aid, self.planes[aid].tiempo_a_aep()) for aid in activos_order]
+        activos_eta.sort(key=lambda x: x[1])
+
+        reintegrables = list(self.turnaround) + list(self.interrupted)
+        for aid in reintegrables:
+            av = self.planes[aid]
+            d = av.distancia_nm
+            vmin, vmax = av.limites_velocidad()
+            t_fast = mins_a_aep(d, vmax)
+            t_slow = mins_a_aep(d, vmin)
+
+            # restricción para interrupted: no reinsertar si ya está pegado a AEP
+            if aid in self.interrupted and d <= 5.0:
+                continue
+
+            reinsertado = False
+
+            # entre pares
+            for (a1, t1), (a2, t2) in zip(activos_eta, activos_eta[1:]):
+                t_low = t1 + SEPARACION_MINIMA
+                t_high = t2 - SEPARACION_MINIMA
+                if t_high < t_low:
+                    continue
+                a = max(t_low, t_fast)
+                b = min(t_high, t_slow)
+                if a <= b:
+                    t_target = 0.5 * (a + b)
+                    v_target = (d / t_target) * 60.0
+                    v_target = min(max(v_target, vmin), vmax)
+                    my_mins_to_aep = mins_a_aep(d, v_target)
+                    if t_low <= my_mins_to_aep <= t_high:
+                        av.velocidad_kts = v_target
+                        av.estado = "approach"
+                        if aid in self.turnaround:
+                            self.mover_a_activos(aid)
+                        else:
+                            self.mover_interrupted_a_activos(aid)
+                        reinsertado = True
+                        break
+            if reinsertado:
+                continue
+
+            # antes del primero
+            first_t = activos_eta[0][1]
+            t_high = first_t - SEPARACION_MINIMA
+            a = t_fast
+            b = min(t_high, t_slow)
+            if a <= b:
+                t_target = 0.5 * (a + b)
+                v_target = (d / t_target) * 60.0
+                v_target = min(max(v_target, vmin), vmax)
+                my_mins_to_aep = mins_a_aep(d, v_target)
+                if my_mins_to_aep <= t_high:
+                    av.velocidad_kts = v_target
+                    av.estado = "approach"
+                    if aid in self.turnaround:
+                        self.mover_a_activos(aid)
+                    else:
+                        self.mover_interrupted_a_activos(aid)
+                    continue
+
+            # después del último
+            last_t = activos_eta[-1][1]
+            t_low = last_t + SEPARACION_MINIMA
+            a = max(t_low, t_fast)
+            b = t_slow
+            if a <= b:
+                t_target = 0.5 * (a + b)
+                v_target = (d / t_target) * 60.0
+                v_target = min(max(v_target, vmin), vmax)
+                my_mins_to_aep = mins_a_aep(d, v_target)
+                if my_mins_to_aep >= t_low:
+                    av.velocidad_kts = v_target
+                    av.estado = "approach"
+                    if aid in self.turnaround:
+                        self.mover_a_activos(aid)
+                    else:
+                        self.mover_interrupted_a_activos(aid)
+                    continue
+
+
+
+    """ def intentar_reingreso_con_interrupted(self, activos_order: List[int]) -> None:
+        
+        Igual que intentar_reingreso(base), pero permite reinsertar también
+        los 'interrupted' (go-around) con la misma regla de huecos.
+        Extra: por seguridad, no reinsertar interrupted si d <= 5 nm.
+        
         if not activos_order:
             # si no hay activos, vuelven directo a approach a vmax
             for aid in list(self.turnaround) + list(self.interrupted):
@@ -208,7 +318,7 @@ class TraficoAEPViento(TraficoAviones):
                     if aid in self.turnaround:
                         self.mover_a_activos(aid)
                     else:
-                        self.mover_interrupted_a_activos(aid)
+                        self.mover_interrupted_a_activos(aid) """
 
 
 
