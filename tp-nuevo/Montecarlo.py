@@ -141,3 +141,18 @@ def montecarlo_politica(lams: List[float], dias: int = 100, seed:int = 25, **kwa
         Controller=TraficoAvionesPolitica, controller_kwargs=kwargs or None
     )
 
+def montecarlo_politica2a(lams: List[float], dias: int = 100, seed:int = 25, **kwargs) -> pd.DataFrame:
+    """Montecarlo con Politica de Prioridad de Reingreso por Riesgo de Desvio (TraficoAvionesPolitica2a)"""
+    from TraficoAEPPolitica import TraficoAvionesPolitica2a
+    return montecarlo_dias(
+        lams, dias = dias, seed=seed,
+        Controller=TraficoAvionesPolitica2a, controller_kwargs=kwargs or None
+    )
+
+def montecarlo_politica2b(lams: List[float], dias: int = 100, seed:int = 25, **kwargs) -> pd.DataFrame:
+    """Montecarlo con Politica de Prioridad de Reingreso FIFO por Tiempo en Turnaround (TraficoAvionesPolitica2b)"""
+    from TraficoAEPPolitica import TraficoAvionesPolitica2b
+    return montecarlo_dias(
+        lams, dias = dias, seed=seed,
+        Controller=TraficoAvionesPolitica2b, controller_kwargs=kwargs or None
+    )

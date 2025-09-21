@@ -128,3 +128,21 @@ def simular_jornada_politica(ctrl_seed: int, lam_per_min: float, **kwargs) -> Me
         Controller=TraficoAvionesPolitica,
         controller_kwargs=kwargs or None
     )
+
+def simular_jornada_politica2a(ctrl_seed: int, lam_per_min: float, **kwargs) -> Metricas:
+    """Escenario con Politica de Prioridad de Reingreso (TraficoAvionesPolitica2a)"""
+    from TraficoAEPPolitica import TraficoAvionesPolitica2a
+    return simular_jornada(
+        ctrl_seed, lam_per_min,
+        Controller=TraficoAvionesPolitica2a,
+        controller_kwargs=kwargs or None
+    )
+
+def simular_jornada_politica2b(ctrl_seed: int, lam_per_min: float, **kwargs) -> Metricas:
+    """Escenario con Politica de Prioridad de Reingreso (TraficoAvionesPolitica2b)"""
+    from TraficoAEPPolitica import TraficoAvionesPolitica2b
+    return simular_jornada(
+        ctrl_seed, lam_per_min,
+        Controller=TraficoAvionesPolitica2b,
+        controller_kwargs=kwargs or None
+    )
