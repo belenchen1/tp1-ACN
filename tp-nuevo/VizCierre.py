@@ -1,19 +1,14 @@
-# viz_live.py
+# viz_live_cierre.py
 from __future__ import annotations
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-# En Windows, si no abre ventana, descomentá:
-# matplotlib.use("TkAgg")
+from TraficoAEPCierre import TraficoAEPCerrado, AEPCerrado
+from Constants import VELOCIDADES, DAY_START, DAY_END
 
-from TraficoAEP import TraficoAviones
-from Constants import DAY_END, DAY_START, VELOCIDADES
-
-# ---------------------- helpers de dibujo ----------------------
 def preparar_bandas(ax, ymin=-2.0, ymax=2.0):
-    # Colores suaves, un poco más intensos (alpha=0.45)
     colores = ["#e8f7fa", "#e6f8e0", "#fff2cc", "#f3e6ff", "#ffe6e6"]
     for i, (lo, hi, _, _) in enumerate(VELOCIDADES):
         x0 = lo
@@ -32,44 +27,41 @@ def mm_to_hhmm(mins: int) -> str:
     m = mins % 60
     return f"{h:02d}:{m:02d}"
 
-# ---------------------- animación en vivo ----------------------
-def run_live(lambda_per_min: float = 0.10, seed: int = 42, speed: int = 1):
-    """
-    speed = 1 => 1 minuto de simulación por frame
-    speed = 5 => 5 minutos por frame (más rápido)
-    """
-    ctrl = TraficoAviones(seed=seed)
+def run_live_cierre(lambda_per_min: float = 0.10, seed: int = 42, speed_fast: int = 6):
+    # Cierre en el mismo día (ejemplo: 03:00–03:30)
+    closure = AEPCerrado(start_min=DAY_START + 20, dur_min=30)
+    ctrl = TraficoAEPCerrado(closure=closure, seed=seed)
+
+    # Apariciones para TODO el día, desde minuto 0
     apariciones = set(ctrl.bernoulli_aparicion(lambda_per_min, t0=DAY_START, t1=DAY_END))
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.set_title("simulacion de aproximacion de aviones - aep", fontsize=14, pad=12)
+    ax.set_title("Simulación de aproximación con cierre temporal de AEP (día completo)", fontsize=14, pad=12)
     ax.set_xlim(0, 120); ax.invert_xaxis()
-    ax.set_ylim(-2, 2)
-    ax.set_xlabel("distancia al aeropuerto (millas nauticas)")
+    ax.set_ylim(-2.0, 2.0)
+    ax.set_xlabel("Distancia al aeropuerto (millas náuticas)")
     ax.grid(True, linestyle=":", alpha=0.35)
 
-    preparar_bandas(ax, ymin=-2, ymax=2)
+    preparar_bandas(ax, ymin=-2.0, ymax=2.0)
 
-    # colecciones de puntos
-    approach_scatter   = ax.scatter([], [], s=80, color="#2ecc71", zorder=3)   # approach (verde)
-    turnaround_scatter = ax.scatter([], [], s=80, color="#e74c3c", zorder=3)   # turnaround (rojo)
-    diverted_scatter   = ax.scatter([], [], s=60, color="#7f8c8d", zorder=3)   # desviados (gris)
-    # OJO: no dibujamos "landed" para que desaparezcan
+    # scatter plots
+    approach_scatter   = ax.scatter([], [], s=80, color="#2ecc71", zorder=3)
+    turnaround_scatter = ax.scatter([], [], s=80, color="#e74c3c", zorder=3)
+    diverted_scatter   = ax.scatter([], [], s=60, color="#7f8c8d", zorder=3)
 
     labels = []
 
-    # cajitas de info
+    # cajitas de información
     info_izq = ax.text(
         0.02, 0.95, "", transform=ax.transAxes, ha="left", va="top", fontsize=10,
         bbox=dict(boxstyle="round", facecolor="white", edgecolor="#3d85c6", alpha=0.9)
     )
     info_der = ax.text(
         0.98, 0.95, "", transform=ax.transAxes, ha="right", va="top", fontsize=10,
-        bbox=dict(boxstyle="round", facecolor="#ccf2d1", edgecolor="#6aa84f", alpha=0.9)
+        bbox=dict(boxstyle="round", facecolor="white", edgecolor="#6aa84f", alpha=0.9)
     )
 
-    # estado de animación
-    state = {"t": DAY_START, "paused": False, "speed": max(1, int(speed))}
+    state = {"t": DAY_START, "paused": False}
 
     def clear_labels():
         for txt in labels:
@@ -77,15 +69,12 @@ def run_live(lambda_per_min: float = 0.10, seed: int = 42, speed: int = 1):
         labels.clear()
 
     def collect_positions():
-        # approach
-        x_app = [ctrl.planes[aid].distancia_nm for aid in ctrl.activos]
-        y_app = [1.0] * len(x_app)
+        x_app  = [ctrl.planes[aid].distancia_nm for aid in ctrl.activos]
+        y_app  = [1.0] * len(x_app)
 
-        # turnaround
         x_turn = [ctrl.planes[aid].distancia_nm for aid in ctrl.turnaround]
         y_turn = [0.0] * len(x_turn)
 
-        # inactivos: SOLO mostramos desviados; los aterrizados se ocultan
         diverted_x, diverted_y = [], []
         y_dn = -1.6
         step = 0.12
@@ -100,44 +89,34 @@ def run_live(lambda_per_min: float = 0.10, seed: int = 42, speed: int = 1):
         turn_xy = np.column_stack([x_turn, y_turn]) if x_turn else np.empty((0, 2))
         div_xy  = np.column_stack([diverted_x, diverted_y]) if diverted_x else np.empty((0, 2))
 
-        # landed_xy NO se devuelve (vacío) para que no se dibuje
         return app_xy, turn_xy, div_xy
 
     def update_info_boxes(tnow: int):
         texto_izq = (
-            f"dia: 1\n"
-            f"hora: {mm_to_hhmm(tnow)}\n"
-            f"aeropuerto: abierto\n"
-            f"lambda: {lambda_per_min:.4f}"
+            f"Hora: {mm_to_hhmm(tnow)}\n"
+            f"Aeropuerto: {'CERRADO' if closure.is_closed(tnow) else 'Abierto'}\n"
+            f"λ: {lambda_per_min:.4f}"
         )
         info_izq.set_text(texto_izq)
 
         aterr = sum(1 for a in ctrl.inactivos if ctrl.planes[a].estado == "landed")
         divs  = sum(1 for a in ctrl.inactivos if ctrl.planes[a].estado == "diverted")
         texto_der = (
-            f"aviones activos: {len(ctrl.activos)}\n"
-            f"total generados: {len(ctrl.planes)}\n"
-            f"aterrizados: {aterr}\n"
-            f"desviados: {divs}"
+            f"Activos: {len(ctrl.activos)}\n"
+            f"Turnaround: {len(ctrl.turnaround)}\n"
+            f"Total generados: {len(ctrl.planes)}\n"
+            f"Aterrizados: {aterr}\n"
+            f"Desviados: {divs}"
         )
         info_der.set_text(texto_der)
 
     def add_labels():
-        # etiquetas (ID y vel) solo para approach y turnaround (landed ocultos)
-        for aid in ctrl.activos:
+        for aid in ctrl.activos + ctrl.turnaround:
             av = ctrl.planes[aid]
+            y = 1.0 if aid in ctrl.activos else 0.0
             labels.append(ax.annotate(
                 f"ID: {aid}\n{int(round(av.velocidad_kts))}kt",
-                (av.distancia_nm, 1.0),
-                xytext=(0, 10), textcoords="offset points",
-                ha="center", va="bottom", fontsize=8,
-                bbox=dict(boxstyle="round", fc="white", ec="#888", alpha=0.85)
-            ))
-        for aid in ctrl.turnaround:
-            av = ctrl.planes[aid]
-            labels.append(ax.annotate(
-                f"ID: {aid}\n{int(round(av.velocidad_kts))}kt",
-                (av.distancia_nm, 0.0),
+                (av.distancia_nm, y),
                 xytext=(0, 10), textcoords="offset points",
                 ha="center", va="bottom", fontsize=8,
                 bbox=dict(boxstyle="round", fc="white", ec="#888", alpha=0.85)
@@ -146,13 +125,9 @@ def run_live(lambda_per_min: float = 0.10, seed: int = 42, speed: int = 1):
     def on_key(event):
         if event.key == " ":
             state["paused"] = not state["paused"]
-        elif event.key == "up":
-            state["speed"] = min(10, state["speed"] + 1)
-        elif event.key == "down":
-            state["speed"] = max(1, state["speed"] - 1)
         elif event.key in ("s", "S"):
-            fig.savefig("frame_live.png", dpi=150)
-            print("PNG guardado:", "frame_live.png")
+            fig.savefig("frame_cierre.png", dpi=150)
+            print("PNG guardado:", "frame_cierre.png")
 
     fig.canvas.mpl_connect("key_press_event", on_key)
 
@@ -160,12 +135,23 @@ def run_live(lambda_per_min: float = 0.10, seed: int = 42, speed: int = 1):
         if state["paused"]:
             return []
 
-        for _ in range(state["speed"]):
+        # Avanza siempre; durante cierre 1 min/frame, sino speed_fast min/frame
+        steps = 1 if closure.is_closed(state["t"]) else max(1, int(speed_fast))
+
+        for _ in range(steps):
             if state["t"] >= DAY_END:
                 break
             ctrl.step(state["t"], aparicion=(state["t"] in apariciones))
             state["t"] += 1
 
+        # imprimir aterrizajes nuevos
+        for aid in ctrl.inactivos:
+            av = ctrl.planes[aid]
+            if av.estado == "landed" and not hasattr(av, "_printed"):
+                print(f"Avión {aid} aterrizó a las {mm_to_hhmm(int(av.aterrizaje_min))}")
+                av._printed = True
+
+        # actualizar gráficos
         app_xy, turn_xy, div_xy = collect_positions()
         approach_scatter.set_offsets(app_xy)
         turnaround_scatter.set_offsets(turn_xy)
@@ -177,9 +163,11 @@ def run_live(lambda_per_min: float = 0.10, seed: int = 42, speed: int = 1):
 
         return [approach_scatter, turnaround_scatter, diverted_scatter, info_izq, info_der, *labels]
 
+    # Intervalo del frame (ms). Bajalo si quieres ver más fluido.
     anim = FuncAnimation(fig, step_frame, interval=600, blit=True)
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
-    run_live(lambda_per_min=0.50, seed=42, speed=1)
+    # speed_fast controla cuántos minutos por frame cuando está ABIERTO
+    run_live_cierre(lambda_per_min=0.50, seed=42, speed_fast=1)

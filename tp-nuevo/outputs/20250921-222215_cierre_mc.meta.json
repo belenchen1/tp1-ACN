@@ -1,0 +1,18 @@
+{
+  "scenario": "cierre",
+  "kwargs": {
+    "closure": {
+      "start_min": 180,
+      "dur_min": 30
+    }
+  },
+  "lams": [
+    0.02,
+    0.1,
+    0.2,
+    0.5,
+    1.0
+  ],
+  "dias": 10000,
+  "seed": 123
+}
